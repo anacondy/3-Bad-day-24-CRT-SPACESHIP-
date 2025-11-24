@@ -15,7 +15,7 @@ This wiki provides comprehensive documentation for the CRT Spaceship game - a re
 
 ## 🎮 Quick Start
 
-1. Visit the live game: [https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP/](https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP/)
+1. Visit the live game: [https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP](https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP)
 2. Click "INITIALIZE SYSTEM" to start
 3. Move your mouse/finger to control the ship
 4. Click/tap to shoot enemies

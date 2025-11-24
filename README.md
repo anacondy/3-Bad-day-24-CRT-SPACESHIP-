@@ -1,6 +1,6 @@
 # 🚀 CRT Spaceship - Retro Terminal Space Shooter
 
-**🎮 [PLAY THE GAME HERE](https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP/)**
+**🎮 [PLAY THE GAME HERE](https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP)**
 
 An endless retro-style space shooter game with authentic CRT terminal aesthetics. Navigate your spaceship through waves of enemies in this fast-paced, nostalgic gaming experience.
 

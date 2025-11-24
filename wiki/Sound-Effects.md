@@ -5,11 +5,11 @@ Deep dive into the procedural audio system of CRT Spaceship.
 ## Overview
 
 CRT Spaceship uses the **Web Audio API** to generate all sound effects procedurally in real-time. This means:
-- ✅ No audio files to load
-- ✅ Zero network requests for audio
-- ✅ Smaller total file size
-- ✅ Authentic retro/arcade sound
-- ✅ Infinite variation potential
+- No audio files to load
+- Zero network requests for audio
+- Smaller total file size
+- Authentic retro/arcade sound
+- Infinite variation potential
 
 ## Web Audio API Basics
 
