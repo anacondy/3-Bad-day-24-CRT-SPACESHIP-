@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro CRT Interactive Terminal</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --phosphor-main: #39ff14;
+            --phosphor-dim: #1b8a0a;
+            --bg-color: #050505;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Prevents zooming/scrolling on mobile */
+        }
+
+        /* Container for the CRT Effect */
+        #crt-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-color);
+            overflow: hidden;
+        }
+
+        /* The actual game canvas */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            filter: blur(0.5px) contrast(1.2) brightness(1.1);
+        }
+
+        /* Scanlines Overlay */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0),
+                rgba(255, 255, 255, 0) 50%,
+                rgba(0, 0, 0, 0.2) 50%,
+                rgba(0, 0, 0, 0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Vignette & Screen Curve Illusion */
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                circle,
+                rgba(0, 0, 0, 0) 60%,
+                rgba(0, 0, 0, 0.6) 90%,
+                rgba(0, 0, 0, 1) 100%
+            );
+            pointer-events: none;
+            z-index: 11;
+            box-shadow: inset 0 0 5rem rgba(0,0,0,0.7);
+        }
+
+        /* Screen Flicker Animation */
+        .flicker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(57, 255, 20, 0.02);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9;
+            animation: flickerAnim 0.15s infinite;
+        }
+
+        @keyframes flickerAnim {
+            0% { opacity: 0.01; }
+            50% { opacity: 0.05; }
+            100% { opacity: 0.01; }
+        }
+
+        /* Start Overlay */
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 20;
+            color: var(--phosphor-main);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 10px var(--phosphor-main);
+            letter-spacing: 5px;
+        }
+
+        p {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+
+        button {
+            margin-top: 2rem;
+            padding: 1rem 2rem;
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            background: transparent;
+            color: var(--phosphor-main);
+            border: 2px solid var(--phosphor-main);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--phosphor-dim);
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--phosphor-main);
+            color: black;
+            box-shadow: 0 0 20px var(--phosphor-main);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        /* Text Flicker Effect */
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+        
+        .ui-stats {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: var(--phosphor-main);
+            font-size: 1.2rem;
+            z-index: 12;
+            pointer-events: none;
+            text-shadow: 0 0 4px var(--phosphor-dim);
+        }
+
+        .ui-score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: var(--phosphor-main);
+            font-size: 1.2rem;
+            z-index: 12;
+            pointer-events: none;
+            text-align: right;
+            text-shadow: 0 0 4px var(--phosphor-dim);
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="crt-container">
+    <div class="flicker"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    
+    <div class="ui-stats">
+        SYSTEM: ONLINE<br>
+        FPS: <span id="fps-counter">60</span><br>
+        AUDIO: <span id="audio-status">OFFLINE</span>
+    </div>
+
+    <div class="ui-score">
+        SCORE: <span id="score">0000</span><br>
+        WAVE: <span id="wave">01</span>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="start-overlay">
+        <h1>// SYSTEM_BOOT //</h1>
+        <p>CRT_TERMINAL_V1.0</p>
+        <p class="blink">PRESS START TO INITIALIZE</p>
+        <button id="start-btn">INITIALIZE SYSTEM</button>
+    </div>
+</div>
+
+<script>
+    /**
+     * RETRO CRT INTERACTIVE TERMINAL
+     * ------------------------------
+     * Built with raw HTML5 Canvas and Web Audio API.
+     * * Core systems:
+     * 1. AudioEngine: Generates procedural sounds (oscillators, noise).
+     * 2. ParticleSystem: Manages ambient dust and touch repulsion.
+     * 3. GameLoop: Manages the "Space Defender" logic (Ship, Bullets, Enemies).
+     */
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const fpsDisplay = document.getElementById('fps-counter');
+    const audioStatusDisplay = document.getElementById('audio-status');
+    const scoreDisplay = document.getElementById('score');
+    const waveDisplay = document.getElementById('wave');
+    const startOverlay = document.getElementById('start-overlay');
+    const startBtn = document.getElementById('start-btn');
+
+    let width, height;
+    let particles = [];
+    let bullets = [];
+    let enemies = [];
+    let explosions = [];
+    let score = 0;
+    let wave = 1;
+    let gameActive = false;
+    let lastTime = 0;
+    
+    // Player State
+    const player = {
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 20,
+        color: '#39ff14',
+        targetX: 0
+    };
+
+    // --- AUDIO ENGINE (Web Audio API) ---
+    const AudioEngine = {
+        ctx: null,
+        isInit: false,
+
+        init() {
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            this.isInit = true;
+            audioStatusDisplay.innerText = "ONLINE";
+            this.playAmbience();
+        },
+
+        // Procedural Shoot Sound (Frequency Sweep)
+        playShoot() {
+            if (!this.isInit) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'square'; // Retro 8-bit feel
+            osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15);
+
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.2);
+        },
+
+        // Procedural Explosion (Filtered Noise)
+        playExplosion() {
+            if (!this.isInit) return;
+            const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            // Generate White Noise
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+
+            const gain = this.ctx.createGain();
+            // Lowpass filter to make it sound like a deep boom
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
+            filter.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.4);
+
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start();
+        },
+
+        // Background Hum
+        playAmbience() {
+            if (!this.isInit) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 60; // 60Hz mains hum
+            gain.gain.value = 0.02; // Very quiet
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+        }
+    };
+
+
+    // --- RESIZE HANDLING ---
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        player.y = height - 80; // Position player near bottom
+        player.targetX = width / 2;
+        player.x = width / 2;
+        
+        // Repopulate particles if screen changes drastically
+        if (particles.length < 50) initParticles();
+    }
+    window.addEventListener('resize', resize);
+
+
+    // --- PARTICLE SYSTEM (The "Dust") ---
+    class Particle {
+        constructor() {
+            this.reset();
+        }
+
+        reset() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.vx = (Math.random() - 0.5) * 0.5; // Slow drift
+            this.vy = (Math.random() - 0.5) * 0.5;
+            this.size = Math.random() * 2 + 0.5;
+            this.alpha = Math.random() * 0.5 + 0.1;
+            this.friction = 0.98;
+        }
+
+        update(interactionX, interactionY, isInteracting) {
+            // Apply ambient drift
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // Screen wrap
+            if (this.x < 0) this.x = width;
+            if (this.x > width) this.x = 0;
+            if (this.y < 0) this.y = height;
+            if (this.y > height) this.y = 0;
+
+            // Interaction: Move away from tap
+            if (isInteracting) {
+                const dx = this.x - interactionX;
+                const dy = this.y - interactionY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = 200; // Radius of effect
+
+                if (dist < maxDist) {
+                    const force = (maxDist - dist) / maxDist; // Stronger closer
+                    const angle = Math.atan2(dy, dx);
+                    const push = 15 * force; // Push strength
+
+                    this.vx += Math.cos(angle) * push * 0.1;
+                    this.vy += Math.sin(angle) * push * 0.1;
+                }
+            }
+
+            // Apply friction to return to normal speed
+            this.vx *= this.friction;
+            this.vy *= this.friction;
+            
+            // Min speed floor to keep them moving
+            if(Math.abs(this.vx) < 0.2) this.vx += (Math.random()-0.5)*0.01;
+            if(Math.abs(this.vy) < 0.2) this.vy += (Math.random()-0.5)*0.01;
+        }
+
+        draw(ctx) {
+            ctx.fillStyle = `rgba(57, 255, 20, ${this.alpha})`;
+            ctx.fillRect(this.x, this.y, this.size, this.size); // Square pixels
+        }
+    }
+
+    function initParticles() {
+        particles = [];
+        // More particles on larger screens
+        const count = Math.min((width * height) / 4000, 200); 
+        for (let i = 0; i < count; i++) {
+            particles.push(new Particle());
+        }
+    }
+
+    // --- GAME ENTITIES ---
+
+    class Bullet {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.width = 4;
+            this.height = 10;
+            this.speed = 10;
+            this.active = true;
+        }
+        update() {
+            this.y -= this.speed;
+            if (this.y < 0) this.active = false;
+        }
+        draw(ctx) {
+            ctx.fillStyle = '#39ff14';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#39ff14';
+            ctx.fillRect(this.x - this.width/2, this.y, this.width, this.height);
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    class Enemy {
+        constructor() {
+            this.width = 30;
+            this.height = 30;
+            this.x = Math.random() * (width - this.width);
+            this.y = -50;
+            this.speed = Math.random() * 2 + 1 + (wave * 0.2); // Speed increases with wave
+            this.active = true;
+            // Simple sprite shape data (1 = pixel, 0 = empty)
+            this.shape = [
+                [1,0,1,1,0,1],
+                [0,1,1,1,1,0],
+                [1,1,0,0,1,1],
+                [1,0,1,1,0,1]
+            ];
+        }
+        update() {
+            this.y += this.speed;
+            if (this.y > height) this.active = false;
+        }
+        draw(ctx) {
+            ctx.fillStyle = '#39ff14';
+            const pixelSize = this.width / 6;
+            
+            for(let r=0; r<4; r++){
+                for(let c=0; c<6; c++){
+                    if(this.shape[r][c]){
+                        ctx.fillRect(this.x + c*pixelSize, this.y + r*pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+        }
+    }
+
+    class Explosion {
+        constructor(x, y) {
+            this.particles = [];
+            for(let i=0; i<8; i++){
+                this.particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5)*8,
+                    vy: (Math.random()-0.5)*8,
+                    life: 1.0
+                });
+            }
+        }
+        update() {
+            this.particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+            });
+            this.particles = this.particles.filter(p => p.life > 0);
+        }
+        draw(ctx) {
+            ctx.fillStyle = '#fff'; // Flash white
+            this.particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1;
+            });
+        }
+    }
+
+
+    // --- INPUT HANDLING ---
+    let input = { x: 0, y: 0, isDown: false, tapped: false };
+
+    function handleInputStart(e) {
+        input.isDown = true;
+        input.tapped = true;
+        updateInputCoords(e);
+        // Player moves to touch X
+        player.targetX = input.x;
+    }
+
+    function handleInputMove(e) {
+        if (!input.isDown) return;
+        updateInputCoords(e);
+        player.targetX = input.x;
+    }
+
+    function handleInputEnd(e) {
+        input.isDown = false;
+    }
+
+    function updateInputCoords(e) {
+        if (e.touches) {
+            input.x = e.touches[0].clientX;
+            input.y = e.touches[0].clientY;
+        } else {
+            input.x = e.clientX;
+            input.y = e.clientY;
+        }
+    }
+
+    // Attach listeners
+    window.addEventListener('mousedown', handleInputStart);
+    window.addEventListener('mousemove', handleInputMove);
+    window.addEventListener('mouseup', handleInputEnd);
+    
+    window.addEventListener('touchstart', (e) => { handleInputStart(e); }, {passive: false});
+    window.addEventListener('touchmove', (e) => { e.preventDefault(); handleInputMove(e); }, {passive: false});
+    window.addEventListener('touchend', handleInputEnd);
+
+
+    // --- MAIN GAME LOOP ---
+    function loop(timestamp) {
+        const dt = timestamp - lastTime;
+        lastTime = timestamp;
+
+        // FPS Calculation
+        if (timestamp % 10 === 0) fpsDisplay.innerText = Math.round(1000/dt);
+
+        // Clear Canvas (with slight trail for CRT feel? No, straight clear is cleaner for pixel art)
+        ctx.clearRect(0, 0, width, height);
+
+        // 1. Logic
+        
+        // Player Movement (Lerp for smoothness)
+        player.x += (player.targetX - player.x) * 0.15;
+        // Clamp player
+        if(player.x < 20) player.x = 20;
+        if(player.x > width - 20) player.x = width - 20;
+
+        // Spawn Enemies
+        if (gameActive && Math.random() < 0.015 * wave) {
+            enemies.push(new Enemy());
+        }
+
+        // Shooting
+        if (input.tapped && gameActive) {
+            bullets.push(new Bullet(player.x, player.y));
+            AudioEngine.playShoot();
+            input.tapped = false; // Reset tap
+        }
+
+        // Update Bullets
+        bullets.forEach(b => b.update());
+        bullets = bullets.filter(b => b.active);
+
+        // Update Enemies
+        enemies.forEach(e => e.update());
+        
+        // Collision Detection
+        enemies.forEach(e => {
+            bullets.forEach(b => {
+                if(b.active && e.active && 
+                   b.x > e.x && b.x < e.x + e.width &&
+                   b.y > e.y && b.y < e.y + e.height) {
+                    
+                    e.active = false;
+                    b.active = false;
+                    score += 100;
+                    scoreDisplay.innerText = score.toString().padStart(4, '0');
+                    AudioEngine.playExplosion();
+                    explosions.push(new Explosion(e.x + e.width/2, e.y + e.height/2));
+
+                    // Wave progression
+                    if(score > wave * 1000) {
+                        wave++;
+                        waveDisplay.innerText = wave.toString().padStart(2, '0');
+                    }
+                }
+            });
+        });
+
+        // Cleanup inactive enemies
+        enemies = enemies.filter(e => e.active);
+
+        // Update Explosions
+        explosions.forEach(exp => exp.update());
+        explosions = explosions.filter(exp => exp.particles.length > 0);
+
+        // Update Dust Particles (Interact with player tap location)
+        particles.forEach(p => p.update(input.x, input.y, input.isDown));
+
+
+        // 2. Rendering
+        
+        // Draw Particles (Background)
+        particles.forEach(p => p.draw(ctx));
+
+        if (gameActive) {
+            // Draw Player
+            ctx.fillStyle = player.color;
+            // Simple Ship Shape
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(player.x - 20, player.y + 20);
+            ctx.lineTo(player.x + 20, player.y + 20);
+            ctx.fill();
+
+            // Draw Bullets
+            bullets.forEach(b => b.draw(ctx));
+
+            // Draw Enemies
+            enemies.forEach(e => e.draw(ctx));
+
+            // Draw Explosions
+            explosions.forEach(exp => exp.draw(ctx));
+            
+            // Draw Floor Line
+            ctx.strokeStyle = '#39ff14';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, height - 10);
+            ctx.lineTo(width, height - 10);
+            ctx.stroke();
+        }
+
+
+        requestAnimationFrame(loop);
+    }
+
+    // --- INITIALIZATION ---
+    resize();
+    initParticles();
+    
+    //
