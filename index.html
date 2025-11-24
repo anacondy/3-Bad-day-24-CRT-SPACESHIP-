@@ -660,4 +660,15 @@
     resize();
     initParticles();
     
-    //
+    // Start Button Handler
+    startBtn.addEventListener('click', () => {
+        AudioEngine.init(); // Initialize audio on user interaction
+        startOverlay.style.display = 'none';
+        gameActive = true;
+        lastTime = performance.now();
+        loop(lastTime);
+    });
+
+</script>
+</body>
+</html>
