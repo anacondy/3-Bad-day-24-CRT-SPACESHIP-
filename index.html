@@ -190,6 +190,32 @@
             opacity: 0.6;
         }
 
+        /* Auto-fire notification - positioned compactly on screen */
+        .auto-fire-notification {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--phosphor-main);
+            font-size: 1rem;
+            z-index: 15;
+            pointer-events: none;
+            text-shadow: 0 0 8px var(--phosphor-main);
+            padding: 6px 12px;
+            border: 1px solid var(--phosphor-main);
+            background: rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .auto-fire-notification.visible {
+            opacity: 1;
+        }
+
+        .auto-fire-notification.fade-out {
+            opacity: 0;
+        }
+
     </style>
 </head>
 <body>
@@ -210,6 +236,8 @@
         WAVE: <span id="wave">01</span>
     </div>
 
+    <div id="auto-fire-notification" class="auto-fire-notification"></div>
+
     <canvas id="gameCanvas"></canvas>
 
     <div id="start-overlay">
@@ -218,7 +246,7 @@
         <p class="blink">PRESS START TO INITIALIZE</p>
         <button id="start-btn">INITIALIZE SYSTEM</button>
         <p class="keyboard-hints">
-            PC CONTROLS: ← → ARROWS TO MOVE | M = MUTE | SPACE = PAUSE | ENTER = START
+            PC CONTROLS: ← → ARROWS TO MOVE | SHIFT = FIRE | SHIFT+A = AUTO-FIRE | M = MUTE | SPACE = PAUSE
         </p>
     </div>
 </div>
@@ -258,11 +286,23 @@
     // Keyboard state for PC controls
     const keys = {
         left: false,
-        right: false
+        right: false,
+        shift: false
     };
     
-    // Movement distance for keyboard (larger for PC)
-    const KEYBOARD_MOVE_SPEED = 12;
+    // Movement distance for keyboard (larger for PC - increased for faster movement)
+    const KEYBOARD_MOVE_SPEED = 18;
+    
+    // Auto-fire state
+    let autoFireEnabled = false;
+    const AUTO_FIRE_RATE = 150; // milliseconds between auto-fire shots
+    const LINE_OF_SIGHT_WIDTH = 80; // Width of the detection zone for auto-fire
+    let lastAutoFireTime = 0;
+    
+    // Helper function to check if firing is allowed based on rate limiting
+    function canFire(timestamp) {
+        return timestamp - lastAutoFireTime > AUTO_FIRE_RATE;
+    }
     
     // Player State
     const player = {
@@ -602,6 +642,46 @@
     window.addEventListener('touchend', handleInputEnd);
 
     // --- KEYBOARD HANDLING (PC Controls) ---
+    const autoFireNotificationEl = document.getElementById('auto-fire-notification');
+    
+    function showAutoFireNotification(enabled) {
+        const text = enabled ? '[ AUTO-FIRE: ON ]' : '[ AUTO-FIRE: OFF ]';
+        autoFireNotificationEl.textContent = text;
+        autoFireNotificationEl.classList.remove('fade-out');
+        autoFireNotificationEl.classList.add('visible');
+        
+        // Auto-hide after 1.5 seconds with fade out
+        setTimeout(() => {
+            autoFireNotificationEl.classList.add('fade-out');
+            setTimeout(() => {
+                autoFireNotificationEl.classList.remove('visible', 'fade-out');
+            }, 300);
+        }, 1500);
+    }
+    
+    function toggleAutoFire() {
+        autoFireEnabled = !autoFireEnabled;
+        showAutoFireNotification(autoFireEnabled);
+    }
+    
+    // Check if there are targets in line of sight (vertically above the player)
+    function hasTargetsInLineOfSight() {
+        const playerCenterX = player.x;
+        const halfLineOfSight = LINE_OF_SIGHT_WIDTH / 2;
+        
+        for (let i = 0; i < enemies.length; i++) {
+            const enemy = enemies[i];
+            if (enemy.active && enemy.y < player.y) {
+                // Check if enemy is within the line of sight (vertical column above player)
+                const enemyCenterX = enemy.x + enemy.width / 2;
+                if (Math.abs(enemyCenterX - playerCenterX) < halfLineOfSight) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
     function handleKeyDown(e) {
         // Enter key to start game from start screen (when game is not active)
         if (e.key === 'Enter' && !gameActive) {
@@ -623,6 +703,19 @@
             togglePause();
             return;
         }
+        
+        // Shift+A or Alt+A to toggle auto-fire
+        if ((e.key === 'a' || e.key === 'A') && (e.shiftKey || e.altKey) && gameActive) {
+            e.preventDefault();
+            toggleAutoFire();
+            return;
+        }
+        
+        // Shift key to fire bullets
+        if (e.key === 'Shift') {
+            e.preventDefault();
+            keys.shift = true;
+        }
 
         // Arrow keys for movement (PC)
         if (e.key === 'ArrowLeft') {
@@ -636,6 +729,10 @@
     }
 
     function handleKeyUp(e) {
+        if (e.key === 'Shift') {
+            e.preventDefault();
+            keys.shift = false;
+        }
         if (e.key === 'ArrowLeft') {
             e.preventDefault();
             keys.left = false;
@@ -733,11 +830,31 @@
             enemies.push(new Enemy());
         }
 
-        // Shooting
+        // Shooting - supports multiple methods
+        let shouldFire = false;
+        
+        // Touch/click tap to fire
         if (input.tapped && gameActive) {
+            shouldFire = true;
+            input.tapped = false; // Reset tap
+        }
+        
+        // Shift key to fire (PC control) with rate limiting
+        if (keys.shift && gameActive && canFire(timestamp)) {
+            shouldFire = true;
+            lastAutoFireTime = timestamp;
+        }
+        
+        // Auto-fire when enabled and targets are in line of sight
+        if (autoFireEnabled && gameActive && canFire(timestamp) && hasTargetsInLineOfSight()) {
+            shouldFire = true;
+            lastAutoFireTime = timestamp;
+        }
+        
+        // Execute the fire
+        if (shouldFire) {
             bullets.push(new Bullet(player.x, player.y));
             AudioEngine.playShoot();
-            input.tapped = false; // Reset tap
         }
 
         // Update Bullets
