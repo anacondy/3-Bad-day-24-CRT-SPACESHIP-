@@ -344,9 +344,12 @@ jobs:
           fs.writeFileSync(outputPath, report);
           console.log('Report generated:', outputPath);
           
-          // Output for GitHub Actions
-          console.log('::set-output name=issues_count::' + result.issues.length);
-          console.log('::set-output name=sessions_count::' + result.stats.totalSessions);
+          // Output for GitHub Actions (using GITHUB_OUTPUT environment file)
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (outputFile) {
+              fs.appendFileSync(outputFile, `issues_count=${result.issues.length}\n`);
+              fs.appendFileSync(outputFile, `sessions_count=${result.stats.totalSessions}\n`);
+          }
           SCRIPT_EOF
 
       - name: Create screenshot capture script
@@ -540,9 +543,18 @@ jobs:
 
       - name: Update game version
         run: |
-          # Update the game version in telemetry.js
+          # Update the game version in version.json
           TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
-          sed -i "s/gameVersion: '1.0.0'/gameVersion: '1.0.0-${TIMESTAMP}'/" js/telemetry.js || true
+          VERSION="1.0.0-${TIMESTAMP}"
+          LAST_UPDATED=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          
+          cat > version.json << EOF
+          {
+            "version": "${VERSION}",
+            "lastUpdated": "${LAST_UPDATED}",
+            "name": "CRT Spaceship"
+          }
+          EOF
 
       - name: Commit changes
         run: |
@@ -550,7 +562,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           
           # Add reports and screenshots
-          git add reports/ screenshots/ js/telemetry.js 2>/dev/null || true
+          git add reports/ screenshots/ version.json 2>/dev/null || true
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then

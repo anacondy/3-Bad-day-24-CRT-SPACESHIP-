@@ -187,11 +187,8 @@ const GameTelemetry = (function() {
         };
 
         try {
-            // Use a small, cacheable resource to measure latency
+            // Use a small blob to measure processing latency
             const startTime = performance.now();
-            
-            // Create a unique URL to bypass cache
-            const testUrl = 'data:text/plain;base64,' + btoa('speed test ' + Date.now());
             
             // Measure time to create and resolve a small blob
             const blob = new Blob([new ArrayBuffer(1024 * 10)]); // 10KB test
@@ -388,10 +385,32 @@ const GameTelemetry = (function() {
     }
 
     /**
+     * Get game version from version.json or return default
+     */
+    let cachedVersion = null;
+    async function getGameVersion() {
+        if (cachedVersion) return cachedVersion;
+        
+        try {
+            const response = await fetch('version.json');
+            if (response.ok) {
+                const data = await response.json();
+                cachedVersion = data.version || '1.0.0';
+                return cachedVersion;
+            }
+        } catch (e) {
+            console.warn('Could not load version.json:', e);
+        }
+        cachedVersion = '1.0.0';
+        return cachedVersion;
+    }
+
+    /**
      * Create a full device snapshot for debugging
      */
     async function createDeviceSnapshot() {
         const speed = await measureInternetSpeed();
+        const gameVersion = await getGameVersion();
         
         const snapshot = {
             sessionId: SESSION_ID,
@@ -402,7 +421,7 @@ const GameTelemetry = (function() {
             webgl: getWebGLInfo(),
             performance: getPerformanceMetrics(),
             network: speed,
-            gameVersion: '1.0.0'
+            gameVersion: gameVersion
         };
 
         // Log the snapshot

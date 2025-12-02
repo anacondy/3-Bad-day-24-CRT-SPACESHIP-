@@ -970,20 +970,6 @@
     });
 
     // --- TELEMETRY INTEGRATION ---
-    // Log game events for debugging and optimization
-    function logGameTelemetry(eventName, data = {}) {
-        if (typeof GameTelemetry !== 'undefined') {
-            GameTelemetry.logGameEvent(eventName, data);
-        }
-    }
-    
-    // Monitor FPS during gameplay
-    function updateTelemetryFPS() {
-        if (typeof GameTelemetry !== 'undefined' && gameActive && !gamePaused) {
-            GameTelemetry.monitorFPS();
-        }
-    }
-    
     // Track page visibility for session analysis
     document.addEventListener('visibilitychange', function() {
         if (typeof GameTelemetry !== 'undefined') {
