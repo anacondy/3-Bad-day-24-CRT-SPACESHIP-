@@ -1,0 +1,590 @@
+name: Game Update & Debug Analysis
+
+on:
+  schedule:
+    # Run every 3 days at 00:00 UTC
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force game update even without new issues'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  analyze-and-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install -g puppeteer
+          npx puppeteer browsers install chrome
+
+      - name: Create analysis scripts directory
+        run: mkdir -p .github/scripts
+
+      - name: Create log analyzer script
+        run: |
+          cat > .github/scripts/analyze-logs.js << 'SCRIPT_EOF'
+          /**
+           * Log Analyzer Script
+           * Analyzes telemetry logs and generates debugging reports
+           */
+          
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Encryption key (must match telemetry.js)
+          const ENCRYPTION_KEY = 'CRT_SPACESHIP_LOG_KEY_2024';
+          
+          function decryptData(encryptedStr) {
+              try {
+                  const decoded = Buffer.from(encryptedStr, 'base64').toString('binary');
+                  let decrypted = '';
+                  for (let i = 0; i < decoded.length; i++) {
+                      const charCode = decoded.charCodeAt(i) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length);
+                      decrypted += String.fromCharCode(charCode);
+                  }
+                  return JSON.parse(decrypted);
+              } catch (e) {
+                  console.error('Decryption failed:', e.message);
+                  return null;
+              }
+          }
+          
+          function analyzeLogsFromFile(logsPath) {
+              if (!fs.existsSync(logsPath)) {
+                  console.log('No log file found at:', logsPath);
+                  return { issues: [], stats: {} };
+              }
+              
+              const encrypted = fs.readFileSync(logsPath, 'utf8');
+              const logs = decryptData(encrypted);
+              
+              if (!logs || !Array.isArray(logs)) {
+                  console.log('No valid logs to analyze');
+                  return { issues: [], stats: {} };
+              }
+              
+              return analyzeLogs(logs);
+          }
+          
+          function analyzeLogs(logs) {
+              const issues = [];
+              const stats = {
+                  totalSessions: new Set(),
+                  browsers: {},
+                  devices: {},
+                  os: {},
+                  errors: [],
+                  performanceIssues: [],
+                  connectionQuality: {}
+              };
+              
+              logs.forEach(log => {
+                  // Track unique sessions
+                  if (log.sessionId) {
+                      stats.totalSessions.add(log.sessionId);
+                  }
+                  
+                  // Analyze snapshots
+                  if (log.type === 'snapshot' && log.data) {
+                      const data = log.data;
+                      
+                      // Browser stats
+                      if (data.browser && data.browser.name) {
+                          const browser = `${data.browser.name} ${data.browser.version || ''}`.trim();
+                          stats.browsers[browser] = (stats.browsers[browser] || 0) + 1;
+                      }
+                      
+                      // Device stats
+                      if (data.device && data.device.model) {
+                          stats.devices[data.device.model] = (stats.devices[data.device.model] || 0) + 1;
+                      }
+                      
+                      // OS stats
+                      if (data.device && data.device.os) {
+                          stats.os[data.device.os] = (stats.os[data.device.os] || 0) + 1;
+                      }
+                      
+                      // Connection quality
+                      if (data.network && data.network.connectionQuality) {
+                          stats.connectionQuality[data.network.connectionQuality] = 
+                              (stats.connectionQuality[data.network.connectionQuality] || 0) + 1;
+                      }
+                  }
+                  
+                  // Collect errors
+                  if (log.type === 'error') {
+                      stats.errors.push({
+                          message: log.message,
+                          data: log.data,
+                          timestamp: log.timestamp,
+                          sessionId: log.sessionId
+                      });
+                      
+                      issues.push({
+                          type: 'error',
+                          severity: 'high',
+                          description: log.message,
+                          details: log.data,
+                          occurrences: 1,
+                          status: 'detected'
+                      });
+                  }
+                  
+                  // Collect performance issues
+                  if (log.type === 'performance' && log.message === 'Low FPS detected') {
+                      stats.performanceIssues.push({
+                          avgFPS: log.data.averageFPS,
+                          minFPS: log.data.minFPS,
+                          timestamp: log.timestamp,
+                          sessionId: log.sessionId
+                      });
+                      
+                      issues.push({
+                          type: 'performance',
+                          severity: 'medium',
+                          description: `Low FPS detected (avg: ${log.data.averageFPS} FPS)`,
+                          details: log.data,
+                          occurrences: 1,
+                          status: 'detected'
+                      });
+                  }
+              });
+              
+              // Convert Set to count
+              stats.totalSessions = stats.totalSessions.size;
+              
+              // Deduplicate and count similar issues
+              const deduplicatedIssues = deduplicateIssues(issues);
+              
+              return { issues: deduplicatedIssues, stats };
+          }
+          
+          function deduplicateIssues(issues) {
+              const issueMap = new Map();
+              
+              issues.forEach(issue => {
+                  const key = `${issue.type}-${issue.description}`;
+                  if (issueMap.has(key)) {
+                      const existing = issueMap.get(key);
+                      existing.occurrences += 1;
+                  } else {
+                      issueMap.set(key, { ...issue });
+                  }
+              });
+              
+              return Array.from(issueMap.values());
+          }
+          
+          function generateReport(analysisResult) {
+              const { issues, stats } = analysisResult;
+              const timestamp = new Date().toISOString();
+              
+              let report = `# Game Debug Analysis Report\n\n`;
+              report += `**Generated:** ${timestamp}\n\n`;
+              
+              // Statistics Section
+              report += `## 📊 Telemetry Statistics\n\n`;
+              report += `| Metric | Value |\n`;
+              report += `|--------|-------|\n`;
+              report += `| Total Sessions | ${stats.totalSessions || 0} |\n`;
+              report += `| Total Errors | ${stats.errors?.length || 0} |\n`;
+              report += `| Performance Issues | ${stats.performanceIssues?.length || 0} |\n\n`;
+              
+              // Browser Distribution
+              if (Object.keys(stats.browsers || {}).length > 0) {
+                  report += `### Browser Distribution\n\n`;
+                  report += `| Browser | Sessions |\n`;
+                  report += `|---------|----------|\n`;
+                  Object.entries(stats.browsers).forEach(([browser, count]) => {
+                      report += `| ${browser} | ${count} |\n`;
+                  });
+                  report += `\n`;
+              }
+              
+              // Device Distribution
+              if (Object.keys(stats.devices || {}).length > 0) {
+                  report += `### Device Distribution\n\n`;
+                  report += `| Device | Sessions |\n`;
+                  report += `|--------|----------|\n`;
+                  Object.entries(stats.devices).forEach(([device, count]) => {
+                      report += `| ${device} | ${count} |\n`;
+                  });
+                  report += `\n`;
+              }
+              
+              // OS Distribution
+              if (Object.keys(stats.os || {}).length > 0) {
+                  report += `### Operating System Distribution\n\n`;
+                  report += `| OS | Sessions |\n`;
+                  report += `|----|----------|\n`;
+                  Object.entries(stats.os).forEach(([os, count]) => {
+                      report += `| ${os} | ${count} |\n`;
+                  });
+                  report += `\n`;
+              }
+              
+              // Connection Quality
+              if (Object.keys(stats.connectionQuality || {}).length > 0) {
+                  report += `### Connection Quality Distribution\n\n`;
+                  report += `| Quality | Sessions |\n`;
+                  report += `|---------|----------|\n`;
+                  Object.entries(stats.connectionQuality).forEach(([quality, count]) => {
+                      report += `| ${quality} | ${count} |\n`;
+                  });
+                  report += `\n`;
+              }
+              
+              // Issues Section
+              report += `## 🐛 Issues Detected\n\n`;
+              
+              if (issues.length === 0) {
+                  report += `✅ No issues detected in the current analysis period.\n\n`;
+              } else {
+                  report += `| # | Type | Severity | Description | Occurrences | Status |\n`;
+                  report += `|---|------|----------|-------------|-------------|--------|\n`;
+                  issues.forEach((issue, index) => {
+                      const severityEmoji = issue.severity === 'high' ? '🔴' : 
+                                           issue.severity === 'medium' ? '🟡' : '🟢';
+                      report += `| ${index + 1} | ${issue.type} | ${severityEmoji} ${issue.severity} | ${issue.description} | ${issue.occurrences} | ${issue.status} |\n`;
+                  });
+                  report += `\n`;
+              }
+              
+              // Recommendations
+              report += `## 💡 Recommendations\n\n`;
+              
+              const recommendations = generateRecommendations(issues, stats);
+              if (recommendations.length === 0) {
+                  report += `- No specific recommendations at this time.\n`;
+              } else {
+                  recommendations.forEach(rec => {
+                      report += `- ${rec}\n`;
+                  });
+              }
+              
+              return report;
+          }
+          
+          function generateRecommendations(issues, stats) {
+              const recommendations = [];
+              
+              // Performance recommendations
+              const perfIssues = issues.filter(i => i.type === 'performance');
+              if (perfIssues.length > 0) {
+                  recommendations.push('Consider optimizing the game loop to improve FPS on lower-end devices');
+                  recommendations.push('Add adaptive quality settings based on device capabilities');
+              }
+              
+              // Error recommendations
+              const errorIssues = issues.filter(i => i.type === 'error');
+              if (errorIssues.length > 0) {
+                  recommendations.push('Review and fix JavaScript errors affecting user experience');
+                  recommendations.push('Add more error boundary handling in the game code');
+              }
+              
+              // Connection quality recommendations
+              if (stats.connectionQuality?.poor > 0 || stats.connectionQuality?.fair > 0) {
+                  recommendations.push('Consider adding offline mode or reducing network dependency');
+              }
+              
+              // Mobile device recommendations
+              const mobileDevices = Object.keys(stats.devices || {}).filter(d => 
+                  d.includes('iPhone') || d.includes('Android') || d.includes('iPad')
+              );
+              if (mobileDevices.length > 0) {
+                  recommendations.push('Ensure touch controls are optimized for mobile devices');
+              }
+              
+              return recommendations;
+          }
+          
+          // Main execution
+          const logsPath = process.argv[2] || 'logs/telemetry.enc';
+          const outputPath = process.argv[3] || 'reports/debug-report.md';
+          
+          console.log('Analyzing logs...');
+          
+          // If logs file doesn't exist, create a sample analysis
+          let result;
+          if (fs.existsSync(logsPath)) {
+              result = analyzeLogsFromFile(logsPath);
+          } else {
+              console.log('No logs file found, generating sample report');
+              result = { issues: [], stats: { totalSessions: 0 } };
+          }
+          
+          const report = generateReport(result);
+          
+          // Ensure output directory exists
+          const outputDir = path.dirname(outputPath);
+          if (!fs.existsSync(outputDir)) {
+              fs.mkdirSync(outputDir, { recursive: true });
+          }
+          
+          fs.writeFileSync(outputPath, report);
+          console.log('Report generated:', outputPath);
+          
+          // Output for GitHub Actions (using GITHUB_OUTPUT environment file)
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (outputFile) {
+              fs.appendFileSync(outputFile, `issues_count=${result.issues.length}\n`);
+              fs.appendFileSync(outputFile, `sessions_count=${result.stats.totalSessions}\n`);
+          }
+          SCRIPT_EOF
+
+      - name: Create screenshot capture script
+        run: |
+          cat > .github/scripts/capture-screenshots.js << 'SCRIPT_EOF'
+          /**
+           * Screenshot Capture Script
+           * Captures screenshots of the game for documentation
+           */
+          
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+          const path = require('path');
+          
+          async function captureScreenshots(url, outputDir) {
+              const browser = await puppeteer.launch({
+                  headless: 'new',
+                  args: ['--no-sandbox', '--disable-setuid-sandbox']
+              });
+              
+              const page = await browser.newPage();
+              
+              // Set viewport for desktop
+              await page.setViewport({ width: 1920, height: 1080 });
+              
+              console.log('Navigating to:', url);
+              await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+              
+              // Ensure output directory exists
+              if (!fs.existsSync(outputDir)) {
+                  fs.mkdirSync(outputDir, { recursive: true });
+              }
+              
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+              
+              // Capture start screen
+              console.log('Capturing start screen...');
+              await page.screenshot({
+                  path: path.join(outputDir, `start-screen-${timestamp}.png`),
+                  fullPage: false
+              });
+              
+              // Click start button to begin game
+              try {
+                  await page.click('#start-btn');
+                  await new Promise(r => setTimeout(r, 2000)); // Wait for game to initialize
+                  
+                  // Capture gameplay
+                  console.log('Capturing gameplay...');
+                  await page.screenshot({
+                      path: path.join(outputDir, `gameplay-${timestamp}.png`),
+                      fullPage: false
+                  });
+                  
+                  // Wait a bit more for action
+                  await new Promise(r => setTimeout(r, 3000));
+                  
+                  // Capture in-action screenshot
+                  console.log('Capturing in-action...');
+                  await page.screenshot({
+                      path: path.join(outputDir, `in-action-${timestamp}.png`),
+                      fullPage: false
+                  });
+                  
+              } catch (e) {
+                  console.log('Could not interact with game:', e.message);
+              }
+              
+              // Capture mobile viewport
+              await page.setViewport({ width: 375, height: 812 }); // iPhone X dimensions
+              await page.reload({ waitUntil: 'networkidle0' });
+              
+              console.log('Capturing mobile view...');
+              await page.screenshot({
+                  path: path.join(outputDir, `mobile-view-${timestamp}.png`),
+                  fullPage: false
+              });
+              
+              await browser.close();
+              console.log('Screenshots saved to:', outputDir);
+              
+              return {
+                  desktop: `start-screen-${timestamp}.png`,
+                  gameplay: `gameplay-${timestamp}.png`,
+                  action: `in-action-${timestamp}.png`,
+                  mobile: `mobile-view-${timestamp}.png`
+              };
+          }
+          
+          // Main execution
+          const gameUrl = process.argv[2] || 'file://' + path.resolve(__dirname, '../../index.html');
+          const outputDir = process.argv[3] || 'screenshots';
+          
+          captureScreenshots(gameUrl, outputDir)
+              .then(files => {
+                  console.log('Captured files:', files);
+                  process.exit(0);
+              })
+              .catch(err => {
+                  console.error('Screenshot capture failed:', err);
+                  process.exit(1);
+              });
+          SCRIPT_EOF
+
+      - name: Run log analysis
+        id: analyze
+        run: |
+          node .github/scripts/analyze-logs.js logs/telemetry.enc reports/debug-report.md || true
+          
+          if [ -f reports/debug-report.md ]; then
+            echo "report_generated=true" >> $GITHUB_OUTPUT
+          else
+            echo "report_generated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Capture game screenshots
+        id: screenshots
+        continue-on-error: true
+        run: |
+          # Start a simple HTTP server in background
+          python3 -m http.server 8080 &
+          SERVER_PID=$!
+          sleep 3
+          
+          # Capture screenshots
+          node .github/scripts/capture-screenshots.js http://localhost:8080/index.html screenshots || true
+          
+          # Stop server
+          kill $SERVER_PID || true
+          
+          if [ -d screenshots ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
+            echo "screenshots_captured=true" >> $GITHUB_OUTPUT
+          else
+            echo "screenshots_captured=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate PR body
+        id: pr_body
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          cat > pr_body.md << EOF
+          # 🔄 Automated Game Update & Debug Analysis
+          
+          **Generated:** ${TIMESTAMP}
+          
+          ## 📋 Summary
+          
+          This is an automated update generated by the scheduled workflow that runs every 3 days.
+          
+          ## 📊 Analysis Report
+          
+          EOF
+          
+          if [ -f reports/debug-report.md ]; then
+            cat reports/debug-report.md >> pr_body.md
+          else
+            echo "No telemetry data available for analysis yet." >> pr_body.md
+          fi
+          
+          cat >> pr_body.md << EOF
+          
+          ## 📸 Screenshots
+          
+          EOF
+          
+          if [ -d screenshots ] && [ "$(ls -A screenshots 2>/dev/null)" ]; then
+            echo "Screenshots have been captured and are included in this PR." >> pr_body.md
+            for img in screenshots/*.png; do
+              if [ -f "$img" ]; then
+                echo "- $(basename $img)" >> pr_body.md
+              fi
+            done
+          else
+            echo "No screenshots were captured in this run." >> pr_body.md
+          fi
+          
+          cat >> pr_body.md << EOF
+          
+          ## 🔧 Changes Made
+          
+          - Updated game version timestamp
+          - Generated debug analysis report
+          - Captured game screenshots for reference
+          
+          ---
+          *This PR was automatically generated by the Game Update workflow.*
+          EOF
+          
+          echo "pr_body_file=pr_body.md" >> $GITHUB_OUTPUT
+
+      - name: Update game version
+        run: |
+          # Update the game version in version.json
+          TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
+          VERSION="1.0.0-${TIMESTAMP}"
+          LAST_UPDATED=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          
+          cat > version.json << EOF
+          {
+            "version": "${VERSION}",
+            "lastUpdated": "${LAST_UPDATED}",
+            "name": "CRT Spaceship"
+          }
+          EOF
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Add reports and screenshots
+          git add reports/ screenshots/ version.json 2>/dev/null || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_ENV
+          else
+            git commit -m "🔄 Automated game update and debug analysis - $(date -u +"%Y-%m-%d")"
+            echo "has_changes=true" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: env.has_changes == 'true' || github.event.inputs.force_update == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "🔄 Automated game update and debug analysis"
+          title: "🔄 Automated Game Update - ${{ github.run_id }}"
+          body-path: pr_body.md
+          branch: auto-update/${{ github.run_id }}
+          base: main
+          labels: |
+            automated
+            debug-analysis
+            game-update
+          delete-branch: true

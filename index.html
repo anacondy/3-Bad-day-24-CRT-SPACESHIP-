@@ -755,6 +755,12 @@
         gameActive = true;
         gamePaused = false;
         lastTime = performance.now();
+        
+        // Log game start event for telemetry
+        if (typeof GameTelemetry !== 'undefined') {
+            GameTelemetry.logGameEvent('game_started', { wave: wave, score: score });
+        }
+        
         loop(lastTime);
     }
 
@@ -763,9 +769,17 @@
         if (gamePaused) {
             // Suspend audio immediately when pausing
             AudioEngine.suspend();
+            // Log pause event
+            if (typeof GameTelemetry !== 'undefined') {
+                GameTelemetry.logGameEvent('game_paused', { wave: wave, score: score });
+            }
         } else {
             // Resume audio when unpausing
             AudioEngine.resume();
+            // Log resume event
+            if (typeof GameTelemetry !== 'undefined') {
+                GameTelemetry.logGameEvent('game_resumed', { wave: wave, score: score });
+            }
         }
     }
 
@@ -774,6 +788,11 @@
     function loop(timestamp) {
         const dt = timestamp - lastTime;
         lastTime = timestamp;
+        
+        // Telemetry FPS monitoring
+        if (typeof GameTelemetry !== 'undefined' && gameActive && !gamePaused) {
+            GameTelemetry.monitorFPS();
+        }
 
         // FPS Calculation
         if (timestamp % 10 === 0) fpsDisplay.innerText = Math.round(1000/dt);
@@ -880,8 +899,18 @@
 
                     // Wave progression
                     if(score > wave * 1000) {
+                        const oldWave = wave;
                         wave++;
                         waveDisplay.innerText = wave.toString().padStart(2, '0');
+                        
+                        // Log wave progression for telemetry
+                        if (typeof GameTelemetry !== 'undefined') {
+                            GameTelemetry.logGameEvent('wave_completed', { 
+                                previousWave: oldWave, 
+                                newWave: wave, 
+                                score: score 
+                            });
+                        }
                     }
                 }
             });
@@ -940,6 +969,30 @@
         startGame();
     });
 
+    // --- TELEMETRY INTEGRATION ---
+    // Track page visibility for session analysis
+    document.addEventListener('visibilitychange', function() {
+        if (typeof GameTelemetry !== 'undefined') {
+            if (document.hidden) {
+                GameTelemetry.logGameEvent('page_hidden', { wave: wave, score: score, gameActive: gameActive });
+            } else {
+                GameTelemetry.logGameEvent('page_visible', { wave: wave, score: score, gameActive: gameActive });
+            }
+        }
+    });
+    
+    // Track when user leaves the page
+    window.addEventListener('beforeunload', function() {
+        if (typeof GameTelemetry !== 'undefined') {
+            GameTelemetry.logGameEvent('session_ended', { 
+                finalWave: wave, 
+                finalScore: score,
+                gameWasActive: gameActive
+            });
+        }
+    });
+
 </script>
+<script src="js/telemetry.js"></script>
 </body>
 </html>
