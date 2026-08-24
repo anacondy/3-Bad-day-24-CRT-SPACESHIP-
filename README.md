@@ -11,17 +11,18 @@ Play instantly in the browser (no install):
 
 Or download a **portable package** (no full clone required):
 
-- **Preferred:** [GitHub Releases](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases) (draft `v1.0.0-packaging` — publish after review)
-- **In-repo copies:** [`release-assets/`](release-assets/) on this branch (same files; useful before the Release is published)
+- **Preferred:** **[GitHub Release v1.0.0-packaging](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/tag/v1.0.0-packaging)** (public — Win / macOS / Linux / Web / Android / iOS packages)
+- **All releases:** https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases
+- **In-repo copies:** [`release-assets/`](release-assets/) (same files; useful offline from a clone)
 
 | Asset | Platform | How to run |
 |-------|----------|------------|
-| [`CRT-Spaceship-Windows-x64.zip`](release-assets/CRT-Spaceship-Windows-x64.zip) | Windows | Unzip → double-click `Play-CRT-Spaceship.bat` |
-| [`CRT-Spaceship-macOS-universal.tar.gz`](release-assets/CRT-Spaceship-macOS-universal.tar.gz) | macOS | Extract → double-click `Play-CRT-Spaceship.command` |
-| [`CRT-Spaceship-Linux-x64.tar.gz`](release-assets/CRT-Spaceship-Linux-x64.tar.gz) | Linux | Extract → `./Play-CRT-Spaceship.sh` |
-| [`CRT-Spaceship-Android-Web.zip`](release-assets/CRT-Spaceship-Android-Web.zip) | Android | Open site in Chrome → **Add to Home screen** (zip = web files + guide) |
-| [`CRT-Spaceship-iOS-Web.zip`](release-assets/CRT-Spaceship-iOS-Web.zip) | iOS / iPadOS | Open site in **Safari** → Share → **Add to Home Screen** |
-| [`CRT-Spaceship-Web.zip`](release-assets/CRT-Spaceship-Web.zip) | Any OS | Universal static web payload |
+| [CRT-Spaceship-Windows-x64.zip](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-Windows-x64.zip) | Windows | Unzip → double-click `Play-CRT-Spaceship.bat` |
+| [CRT-Spaceship-macOS-universal.tar.gz](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-macOS-universal.tar.gz) | macOS | Extract → double-click `Play-CRT-Spaceship.command` |
+| [CRT-Spaceship-Linux-x64.tar.gz](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-Linux-x64.tar.gz) | Linux | Extract → `./Play-CRT-Spaceship.sh` |
+| [CRT-Spaceship-Android-Web.zip](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-Android-Web.zip) | Android | Open site in Chrome → **Add to Home screen** (zip = web files + guide) |
+| [CRT-Spaceship-iOS-Web.zip](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-iOS-Web.zip) | iOS / iPadOS | Open site in **Safari** → Share → **Add to Home Screen** |
+| [CRT-Spaceship-Web.zip](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases/download/v1.0.0-packaging/CRT-Spaceship-Web.zip) | Any OS | Universal static web payload |
 
 Build packages from source:
 
