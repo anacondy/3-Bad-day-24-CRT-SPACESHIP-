@@ -1,0 +1,51 @@
+# Flatpak manifest for CRT Spaceship
+# App ID: io.github.anacondy.CRTSpaceship
+#
+# This packages the static HTML5 game and opens it with a browser-style
+# runtime. Preferred simple approach: ship files + a tiny launcher that
+# serves them and opens xdg-open.
+#
+# Build (on a Linux machine with flatpak-builder):
+#   flatpak-builder --user --install --force-clean build-dir \
+#     packaging/flatpak/io.github.anacondy.CRTSpaceship.yml
+#
+# See packaging/flatpak/README.md for Flathub submission steps.
+app-id: io.github.anacondy.CRTSpaceship
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: crt-spaceship
+finish-args:
+  # Network only needed for optional Google Fonts; gameplay works offline.
+  - --share=network
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  # Allow opening the default browser / webview helper if used
+  - --talk-name=org.freedesktop.portal.Desktop
+modules:
+  - name: crt-spaceship
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/crt-spaceship
+      - cp -a game/. /app/share/crt-spaceship/
+      - install -Dm755 launcher/crt-spaceship.sh /app/bin/crt-spaceship
+      - install -Dm644 io.github.anacondy.CRTSpaceship.desktop /app/share/applications/io.github.anacondy.CRTSpaceship.desktop
+      - install -Dm644 io.github.anacondy.CRTSpaceship.metainfo.xml /app/share/metainfo/io.github.anacondy.CRTSpaceship.metainfo.xml
+      - install -Dm644 icons/io.github.anacondy.CRTSpaceship.svg /app/share/icons/hicolor/scalable/apps/io.github.anacondy.CRTSpaceship.svg
+    sources:
+      - type: dir
+        path: game-src
+        dest: game
+      - type: dir
+        path: launcher
+        dest: launcher
+      - type: file
+        path: io.github.anacondy.CRTSpaceship.desktop
+      - type: file
+        path: io.github.anacondy.CRTSpaceship.metainfo.xml
+      - type: dir
+        path: icons
+        dest: icons

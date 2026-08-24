@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metainfo for Flathub / GNOME Software / KDE Discover.
+  Validate: appstreamcli validate io.github.anacondy.CRTSpaceship.metainfo.xml
+-->
+<component type="desktop-application">
+  <id>io.github.anacondy.CRTSpaceship</id>
+  <name>CRT Spaceship</name>
+  <summary>Retro CRT terminal space shooter</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <developer id="io.github.anacondy">
+    <name>Anuj Meena</name>
+  </developer>
+  <description>
+    <p>
+      CRT Spaceship is an endless retro-style space shooter with authentic CRT
+      terminal aesthetics. Pilot a phosphor-green ship, blast waves of enemies,
+      and chase high scores — all in a tiny HTML5 Canvas game with procedural
+      Web Audio sound and zero runtime dependencies.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Endless wave-based gameplay with rising difficulty</li>
+      <li>Mouse, touch, and keyboard controls</li>
+      <li>Scanlines, vignette, and phosphor glow CRT look</li>
+      <li>Procedural shoot, explosion, and ambience audio</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.anacondy.CRTSpaceship.desktop</launchable>
+  <url type="homepage">https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-</url>
+  <url type="bugtracker">https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/issues</url>
+  <categories>
+    <category>Game</category>
+    <category>ArcadeGame</category>
+  </categories>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">mild</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="1.0.0" date="2024-12-02">
+      <description>
+        <p>Initial packaged release metadata for Flatpak.</p>
+      </description>
+    </release>
+  </releases>
+  <!-- Screenshots: replace with permanent HTTPS URLs before Flathub submission -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Start screen</caption>
+      <image>https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP-/</image>
+    </screenshot>
+  </screenshots>
+</component>

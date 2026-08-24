@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CRT Spaceship">
+  <rect width="512" height="512" rx="64" fill="#050505"/>
+  <rect x="32" y="32" width="448" height="448" rx="24" fill="none" stroke="#1b8a0a" stroke-width="8" opacity="0.6"/>
+  <polygon points="256,120 160,392 256,340 352,392" fill="#39ff14"/>
+  <circle cx="256" cy="260" r="10" fill="#050505"/>
+  <!-- subtle scanline suggestion -->
+  <g opacity="0.15" stroke="#39ff14" stroke-width="2">
+    <line x1="48" y1="100" x2="464" y2="100"/>
+    <line x1="48" y1="140" x2="464" y2="140"/>
+    <line x1="48" y1="180" x2="464" y2="180"/>
+    <line x1="48" y1="220" x2="464" y2="220"/>
+    <line x1="48" y1="260" x2="464" y2="260"/>
+    <line x1="48" y1="300" x2="464" y2="300"/>
+    <line x1="48" y1="340" x2="464" y2="340"/>
+    <line x1="48" y1="380" x2="464" y2="380"/>
+    <line x1="48" y1="420" x2="464" y2="420"/>
+  </g>
+</svg>

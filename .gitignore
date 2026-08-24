@@ -9,3 +9,12 @@ Thumbs.db
 .cache/
 .idea/
 .vscode/
+
+# Built release archives (produce with tools/build-release-packages.sh)
+dist/
+
+# Flatpak local build trees / synced payload
+packaging/flatpak/game-src/
+packaging/flatpak/build-dir/
+packaging/flatpak/.flatpak-builder/
+.github/scripts/

@@ -57,7 +57,7 @@ Found an issue or want to improve the game? Check out our [Contributing Guide](h
 
 ## 📝 License
 
-MIT License - See [LICENSE](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/blob/main/LICENSE)
+Apache License 2.0 — See [LICENSE](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/blob/main/LICENSE) and [NOTICE](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/blob/main/NOTICE)
 
 ---
 

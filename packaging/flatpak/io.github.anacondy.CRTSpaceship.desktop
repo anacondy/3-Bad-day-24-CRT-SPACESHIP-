@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=CRT Spaceship
+GenericName=Space shooter
+Comment=Retro CRT terminal space shooter
+Exec=crt-spaceship
+Icon=io.github.anacondy.CRTSpaceship
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=space;shooter;retro;crt;arcade;
+StartupNotify=true
+SingleMainWindow=true

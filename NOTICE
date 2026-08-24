@@ -1,0 +1,18 @@
+CRT Spaceship
+Copyright 2025 Anuj Meena
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full license text.
+
+---
+
+This product includes the following third-party components when used online:
+
+  * VT323 font (Google Fonts)
+    Loaded at runtime from fonts.googleapis.com / fonts.gstatic.com
+    when a network connection is available.
+    Font software is subject to its own SIL Open Font License (OFL).
+    Offline play falls back to the system monospace font; gameplay is unchanged.
+
+Game engine code (HTML5 Canvas, Web Audio procedural SFX) is original work
+contained primarily in index.html and js/telemetry.js.

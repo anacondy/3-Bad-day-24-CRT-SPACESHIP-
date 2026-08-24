@@ -1,0 +1,277 @@
+# Game Update & Debug Analysis (report-only)
+# ---------------------------------------------------------------
+# PREVIOUS BEHAVIOR (root cause of ~92 auto-update/* branches):
+#   - cron every 3 days
+#   - always rewrote version.json (guaranteed a git diff)
+#   - peter-evans/create-pull-request with:
+#         branch: auto-update/${{ github.run_id }}
+#     so EVERY run pushed a brand-new branch + PR
+#   - delete-branch: true only removes the branch AFTER merge;
+#     unmerged/closed PRs left branches behind → branch spam
+#
+# NEW BEHAVIOR:
+#   - schedule disabled by default (workflow_dispatch only)
+#   - never creates branches or pull requests
+#   - writes analysis artifacts for download from the Actions run
+#   - does not modify version.json or push commits
+# ---------------------------------------------------------------
+name: Game Update & Debug Analysis
+
+on:
+  # Schedule intentionally removed to stop automatic branch/PR spam.
+  # Re-enable only after reviewing BRANCH_CLEANUP.md if you need it:
+  # schedule:
+  #   - cron: '0 0 */3 * *'
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Optional note for this manual analysis run'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: game-debug-analysis
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Report-only analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Create analysis workspace
+        run: |
+          mkdir -p .github/scripts reports screenshots
+          echo "Manual note: ${{ github.event.inputs.note }}" > reports/run-note.txt
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > reports/run-timestamp.txt
+
+      - name: Create log analyzer script
+        run: |
+          cat > .github/scripts/analyze-logs.js << 'SCRIPT_EOF'
+          /**
+           * Log Analyzer — report only (no git writes)
+           */
+          const fs = require('fs');
+          const path = require('path');
+
+          // Must match js/telemetry.js (client-side obfuscation key, not a secret)
+          const ENCRYPTION_KEY = 'CRT_SPACESHIP_LOG_KEY_2024';
+
+          function decryptData(encryptedStr) {
+              try {
+                  const decoded = Buffer.from(encryptedStr, 'base64').toString('binary');
+                  let decrypted = '';
+                  for (let i = 0; i < decoded.length; i++) {
+                      const charCode = decoded.charCodeAt(i) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length);
+                      decrypted += String.fromCharCode(charCode);
+                  }
+                  return JSON.parse(decrypted);
+              } catch (e) {
+                  console.error('Decryption failed:', e.message);
+                  return null;
+              }
+          }
+
+          function analyzeLogs(logs) {
+              const issues = [];
+              const stats = {
+                  totalSessions: new Set(),
+                  browsers: {},
+                  devices: {},
+                  os: {},
+                  errors: [],
+                  performanceIssues: [],
+                  connectionQuality: {}
+              };
+
+              logs.forEach(log => {
+                  if (log.sessionId) stats.totalSessions.add(log.sessionId);
+
+                  if (log.type === 'snapshot' && log.data) {
+                      const data = log.data;
+                      if (data.browser && data.browser.name) {
+                          const browser = `${data.browser.name} ${data.browser.version || ''}`.trim();
+                          stats.browsers[browser] = (stats.browsers[browser] || 0) + 1;
+                      }
+                      if (data.device && data.device.model) {
+                          stats.devices[data.device.model] = (stats.devices[data.device.model] || 0) + 1;
+                      }
+                      if (data.device && data.device.os) {
+                          stats.os[data.device.os] = (stats.os[data.device.os] || 0) + 1;
+                      }
+                      if (data.network && data.network.connectionQuality) {
+                          stats.connectionQuality[data.network.connectionQuality] =
+                              (stats.connectionQuality[data.network.connectionQuality] || 0) + 1;
+                      }
+                  }
+
+                  if (log.type === 'error') {
+                      stats.errors.push({
+                          message: log.message,
+                          data: log.data,
+                          timestamp: log.timestamp,
+                          sessionId: log.sessionId
+                      });
+                      issues.push({
+                          type: 'error',
+                          severity: 'high',
+                          description: log.message,
+                          details: log.data,
+                          occurrences: 1,
+                          status: 'detected'
+                      });
+                  }
+
+                  if (log.type === 'performance' && log.message === 'Low FPS detected') {
+                      stats.performanceIssues.push({
+                          avgFPS: log.data.averageFPS,
+                          minFPS: log.data.minFPS,
+                          timestamp: log.timestamp,
+                          sessionId: log.sessionId
+                      });
+                      issues.push({
+                          type: 'performance',
+                          severity: 'medium',
+                          description: `Low FPS detected (avg: ${log.data.averageFPS} FPS)`,
+                          details: log.data,
+                          occurrences: 1,
+                          status: 'detected'
+                      });
+                  }
+              });
+
+              stats.totalSessions = stats.totalSessions.size;
+
+              const issueMap = new Map();
+              issues.forEach(issue => {
+                  const key = `${issue.type}-${issue.description}`;
+                  if (issueMap.has(key)) issueMap.get(key).occurrences += 1;
+                  else issueMap.set(key, { ...issue });
+              });
+
+              return { issues: Array.from(issueMap.values()), stats };
+          }
+
+          function generateReport(analysisResult) {
+              const { issues, stats } = analysisResult;
+              const timestamp = new Date().toISOString();
+              let report = `# Game Debug Analysis Report\n\n`;
+              report += `**Generated:** ${timestamp}\n\n`;
+              report += `> Report-only workflow — no branches or PRs are created.\n\n`;
+              report += `## Statistics\n\n`;
+              report += `| Metric | Value |\n|--------|-------|\n`;
+              report += `| Total Sessions | ${stats.totalSessions || 0} |\n`;
+              report += `| Total Errors | ${stats.errors?.length || 0} |\n`;
+              report += `| Performance Issues | ${stats.performanceIssues?.length || 0} |\n\n`;
+
+              if (Object.keys(stats.browsers || {}).length > 0) {
+                  report += `### Browsers\n\n| Browser | Sessions |\n|---------|----------|\n`;
+                  Object.entries(stats.browsers).forEach(([b, c]) => { report += `| ${b} | ${c} |\n`; });
+                  report += `\n`;
+              }
+              if (Object.keys(stats.devices || {}).length > 0) {
+                  report += `### Devices\n\n| Device | Sessions |\n|--------|----------|\n`;
+                  Object.entries(stats.devices).forEach(([d, c]) => { report += `| ${d} | ${c} |\n`; });
+                  report += `\n`;
+              }
+              if (Object.keys(stats.os || {}).length > 0) {
+                  report += `### Operating Systems\n\n| OS | Sessions |\n|----|----------|\n`;
+                  Object.entries(stats.os).forEach(([o, c]) => { report += `| ${o} | ${c} |\n`; });
+                  report += `\n`;
+              }
+
+              report += `## Issues\n\n`;
+              if (issues.length === 0) {
+                  report += `No issues detected (or no telemetry file present).\n\n`;
+              } else {
+                  report += `| # | Type | Severity | Description | Occurrences |\n`;
+                  report += `|---|------|----------|-------------|-------------|\n`;
+                  issues.forEach((issue, index) => {
+                      report += `| ${index + 1} | ${issue.type} | ${issue.severity} | ${issue.description} | ${issue.occurrences} |\n`;
+                  });
+                  report += `\n`;
+              }
+
+              report += `## Notes\n\n`;
+              report += `- Telemetry lives in browser localStorage; \`logs/telemetry.enc\` is only present if manually exported.\n`;
+              report += `- The XOR key in telemetry is public obfuscation, not confidentiality.\n`;
+              report += `- This job never pushes git commits or opens pull requests.\n`;
+              return report;
+          }
+
+          const logsPath = process.argv[2] || 'logs/telemetry.enc';
+          const outputPath = process.argv[3] || 'reports/debug-report.md';
+
+          let result;
+          if (fs.existsSync(logsPath)) {
+              const encrypted = fs.readFileSync(logsPath, 'utf8');
+              const logs = decryptData(encrypted);
+              result = (logs && Array.isArray(logs))
+                  ? analyzeLogs(logs)
+                  : { issues: [], stats: { totalSessions: 0, errors: [], performanceIssues: [] } };
+          } else {
+              console.log('No logs file at', logsPath);
+              result = { issues: [], stats: { totalSessions: 0, errors: [], performanceIssues: [] } };
+          }
+
+          const report = generateReport(result);
+          fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+          fs.writeFileSync(outputPath, report);
+          console.log('Wrote', outputPath);
+
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (outputFile) {
+              fs.appendFileSync(outputFile, `issues_count=${result.issues.length}\n`);
+              fs.appendFileSync(outputFile, `sessions_count=${result.stats.totalSessions || 0}\n`);
+          }
+          SCRIPT_EOF
+
+      - name: Run log analysis
+        id: analyze
+        run: node .github/scripts/analyze-logs.js logs/telemetry.enc reports/debug-report.md
+
+      - name: Optional local smoke (static)
+        continue-on-error: true
+        run: |
+          if [ -f tools/platform-smoke.js ]; then
+            node tools/platform-smoke.js || true
+          fi
+
+      - name: Upload analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-analysis-${{ github.run_id }}
+          path: |
+            reports/
+            logs/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "## Game debug analysis (report-only)"
+            echo ""
+            echo "- **Branches created:** 0"
+            echo "- **Pull requests created:** 0"
+            echo "- **Issues found:** ${{ steps.analyze.outputs.issues_count || 0 }}"
+            echo "- **Sessions:** ${{ steps.analyze.outputs.sessions_count || 0 }}"
+            echo ""
+            echo "Download the \`debug-analysis\` artifact from this run for the full report."
+            if [ -f reports/debug-report.md ]; then
+              echo ""
+              echo "### Report preview"
+              echo ""
+              head -n 80 reports/debug-report.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
