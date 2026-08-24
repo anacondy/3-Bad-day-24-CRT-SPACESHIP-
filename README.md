@@ -9,24 +9,27 @@ An endless retro-style space shooter game with authentic CRT terminal aesthetics
 Play instantly in the browser (no install):  
 **https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP-/**
 
-Or download a **portable package** from **[GitHub Releases](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases)** (no clone required):
+Or download a **portable package** (no full clone required):
+
+- **Preferred:** [GitHub Releases](https://github.com/anacondy/3-Bad-day-24-CRT-SPACESHIP-/releases) (draft `v1.0.0-packaging` — publish after review)
+- **In-repo copies:** [`release-assets/`](release-assets/) on this branch (same files; useful before the Release is published)
 
 | Asset | Platform | How to run |
 |-------|----------|------------|
-| `CRT-Spaceship-Windows-x64.zip` | Windows | Unzip → double-click `Play-CRT-Spaceship.bat` |
-| `CRT-Spaceship-macOS-universal.tar.gz` | macOS | Extract → double-click `Play-CRT-Spaceship.command` |
-| `CRT-Spaceship-Linux-x64.tar.gz` | Linux | Extract → `./Play-CRT-Spaceship.sh` |
-| `CRT-Spaceship-Android-Web.zip` | Android | Open site in Chrome → **Add to Home screen** (zip = web files + guide) |
-| `CRT-Spaceship-iOS-Web.zip` | iOS / iPadOS | Open site in **Safari** → Share → **Add to Home Screen** |
-| `CRT-Spaceship-Web.zip` | Any OS | Universal static web payload |
+| [`CRT-Spaceship-Windows-x64.zip`](release-assets/CRT-Spaceship-Windows-x64.zip) | Windows | Unzip → double-click `Play-CRT-Spaceship.bat` |
+| [`CRT-Spaceship-macOS-universal.tar.gz`](release-assets/CRT-Spaceship-macOS-universal.tar.gz) | macOS | Extract → double-click `Play-CRT-Spaceship.command` |
+| [`CRT-Spaceship-Linux-x64.tar.gz`](release-assets/CRT-Spaceship-Linux-x64.tar.gz) | Linux | Extract → `./Play-CRT-Spaceship.sh` |
+| [`CRT-Spaceship-Android-Web.zip`](release-assets/CRT-Spaceship-Android-Web.zip) | Android | Open site in Chrome → **Add to Home screen** (zip = web files + guide) |
+| [`CRT-Spaceship-iOS-Web.zip`](release-assets/CRT-Spaceship-iOS-Web.zip) | iOS / iPadOS | Open site in **Safari** → Share → **Add to Home Screen** |
+| [`CRT-Spaceship-Web.zip`](release-assets/CRT-Spaceship-Web.zip) | Any OS | Universal static web payload |
 
 Build packages from source:
 
 ```bash
 ./tools/build-release-packages.sh
 # outputs under dist/ + SHA256SUMS.txt
+# optional: cp -a dist/* release-assets/
 ```
-
 ### Windows
 
 1. Download `CRT-Spaceship-Windows-x64.zip` from Releases  
