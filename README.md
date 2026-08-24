@@ -266,6 +266,28 @@ Then open: http://localhost:8080
 - Opera 76+
 - Mobile browsers (iOS Safari, Chrome Mobile)
 
+### Cross-Platform Support
+
+This is a **static browser game** (no native binaries). It is intended to run on:
+
+| Platform | Run method |
+|----------|------------|
+| Windows | Edge / Chrome / Firefox — local server or GitHub Pages |
+| macOS | Safari 14+ / Chrome / Firefox |
+| Linux | Chromium / Firefox |
+| Android | Chrome Mobile (web or Add to Home screen) |
+| iOS / iPadOS | Mobile Safari (web or Add to Home Screen) |
+
+Full platform notes (viewport/orientation, input matrix, security, test steps): **[PLATFORM.md](PLATFORM.md)**
+
+**Quick platform smoke test** (Node 18+, optional Puppeteer for headless runtime):
+
+```bash
+node tools/platform-smoke.js
+# optional runtime:
+# npm install --no-save puppeteer && node tools/platform-smoke.js
+```
+
 ### Performance Optimizations
 - **Efficient Particle System**: Object pooling for particles
 - **RequestAnimationFrame**: Smooth 60 FPS rendering

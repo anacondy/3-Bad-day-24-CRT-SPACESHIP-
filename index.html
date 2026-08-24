@@ -2,7 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="color-scheme" content="dark">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CRT Spaceship">
+    <meta name="application-name" content="CRT Spaceship">
+    <meta name="description" content="Retro CRT terminal space shooter — endless waves, phosphor green, pure HTML5 Canvas.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+    <link rel="manifest" href="site.webmanifest">
     <title>Retro CRT Interactive Terminal</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
@@ -23,14 +34,19 @@
             font-family: 'VT323', monospace;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
             touch-action: none; /* Prevents zooming/scrolling on mobile */
         }
 
         /* Container for the CRT Effect */
+        /* 100dvh corrects mobile browser chrome (iOS/Android); 100vh kept as fallback */
         #crt-container {
             position: relative;
             width: 100vw;
+            width: 100dvw;
             height: 100vh;
+            height: 100dvh;
             background: var(--bg-color);
             overflow: hidden;
         }
@@ -429,19 +445,43 @@
 
 
     // --- RESIZE HANDLING ---
+    // Uses visualViewport when available so iOS Safari / Android Chrome
+    // address bars and orientation changes map 1:1 to the canvas.
+    // Does not change entity sizes, speeds, or collision math.
+    function getViewportSize() {
+        const vv = window.visualViewport;
+        if (vv && vv.width > 0 && vv.height > 0) {
+            return { w: Math.round(vv.width), h: Math.round(vv.height) };
+        }
+        return {
+            w: Math.round(window.innerWidth || document.documentElement.clientWidth || 320),
+            h: Math.round(window.innerHeight || document.documentElement.clientHeight || 480)
+        };
+    }
+
     function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
+        const vp = getViewportSize();
+        width = vp.w;
+        height = vp.h;
         canvas.width = width;
         canvas.height = height;
         player.y = height - 80; // Position player near bottom
         player.targetX = width / 2;
         player.x = width / 2;
-        
+
         // Repopulate particles if screen changes drastically
         if (particles.length < 50) initParticles();
     }
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', function() {
+        // iOS fires orientationchange before dimensions settle
+        setTimeout(resize, 100);
+        setTimeout(resize, 300);
+    });
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', resize);
+        window.visualViewport.addEventListener('scroll', resize);
+    }
 
 
     // --- PARTICLE SYSTEM (The "Dust") ---
@@ -603,6 +643,10 @@
 
     // --- INPUT HANDLING ---
     let input = { x: 0, y: 0, isDown: false, tapped: false };
+    // Suppress synthesized mouse events after touch (mobile Safari / Chrome)
+    // so a single tap does not fire twice. Does not change fire rate or physics.
+    let lastTouchEndTime = 0;
+    const MOUSE_SUPPRESS_MS = 700;
 
     function handleInputStart(e) {
         input.isDown = true;
@@ -623,23 +667,55 @@
     }
 
     function updateInputCoords(e) {
-        if (e.touches) {
+        // Prefer touches; fall back to changedTouches on touchend; then mouse
+        if (e.touches && e.touches.length > 0) {
             input.x = e.touches[0].clientX;
             input.y = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            input.x = e.changedTouches[0].clientX;
+            input.y = e.changedTouches[0].clientY;
         } else {
             input.x = e.clientX;
             input.y = e.clientY;
         }
     }
 
+    function isGhostMouseEvent() {
+        return (performance.now() - lastTouchEndTime) < MOUSE_SUPPRESS_MS;
+    }
+
     // Attach listeners
-    window.addEventListener('mousedown', handleInputStart);
-    window.addEventListener('mousemove', handleInputMove);
-    window.addEventListener('mouseup', handleInputEnd);
-    
-    window.addEventListener('touchstart', (e) => { handleInputStart(e); }, {passive: false});
-    window.addEventListener('touchmove', (e) => { e.preventDefault(); handleInputMove(e); }, {passive: false});
-    window.addEventListener('touchend', handleInputEnd);
+    window.addEventListener('mousedown', function(e) {
+        if (isGhostMouseEvent()) return;
+        handleInputStart(e);
+    });
+    window.addEventListener('mousemove', function(e) {
+        if (isGhostMouseEvent()) return;
+        handleInputMove(e);
+    });
+    window.addEventListener('mouseup', function(e) {
+        if (isGhostMouseEvent()) return;
+        handleInputEnd(e);
+    });
+
+    window.addEventListener('touchstart', function(e) {
+        // Prevent synthetic mouse + scroll/zoom without altering game coords
+        if (e.cancelable) e.preventDefault();
+        handleInputStart(e);
+    }, { passive: false });
+    window.addEventListener('touchmove', function(e) {
+        if (e.cancelable) e.preventDefault();
+        handleInputMove(e);
+    }, { passive: false });
+    window.addEventListener('touchend', function(e) {
+        if (e.cancelable) e.preventDefault();
+        lastTouchEndTime = performance.now();
+        handleInputEnd(e);
+    }, { passive: false });
+    window.addEventListener('touchcancel', function(e) {
+        lastTouchEndTime = performance.now();
+        handleInputEnd(e);
+    }, { passive: false });
 
     // --- KEYBOARD HANDLING (PC Controls) ---
     const autoFireNotificationEl = document.getElementById('auto-fire-notification');
@@ -972,24 +1048,42 @@
     // --- TELEMETRY INTEGRATION ---
     // Track page visibility for session analysis
     document.addEventListener('visibilitychange', function() {
-        if (typeof GameTelemetry !== 'undefined') {
-            if (document.hidden) {
+        if (document.hidden) {
+            // iOS/Safari often suspends AudioContext in background tabs
+            if (AudioEngine.ctx && AudioEngine.ctx.state === 'running' && !gamePaused) {
+                AudioEngine.suspend();
+            }
+            if (typeof GameTelemetry !== 'undefined') {
                 GameTelemetry.logGameEvent('page_hidden', { wave: wave, score: score, gameActive: gameActive });
-            } else {
+            }
+        } else {
+            // Resume audio only if game is active and not user-paused
+            if (gameActive && !gamePaused && AudioEngine.isInit) {
+                AudioEngine.resume();
+            }
+            if (typeof GameTelemetry !== 'undefined') {
                 GameTelemetry.logGameEvent('page_visible', { wave: wave, score: score, gameActive: gameActive });
             }
         }
     });
-    
+
     // Track when user leaves the page
     window.addEventListener('beforeunload', function() {
         if (typeof GameTelemetry !== 'undefined') {
-            GameTelemetry.logGameEvent('session_ended', { 
-                finalWave: wave, 
+            GameTelemetry.logGameEvent('session_ended', {
+                finalWave: wave,
                 finalScore: score,
                 gameWasActive: gameActive
             });
         }
+    });
+
+    // Some mobile browsers fire pageshow after bfcache restore
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted && gameActive && !gamePaused && AudioEngine.isInit) {
+            AudioEngine.resume();
+        }
+        resize();
     });
 
 </script>
