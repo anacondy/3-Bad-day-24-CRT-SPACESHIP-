@@ -1,0 +1,76 @@
+# Build portable release archives and attach them to a GitHub Release.
+# Trigger: push a version tag, e.g. git tag v1.0.0 && git push origin v1.0.0
+# Or run manually via workflow_dispatch.
+name: Build release packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g. v1.0.0). Leave empty to upload artifacts only.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build portable packages
+        run: |
+          chmod +x tools/build-release-packages.sh packaging/flatpak/sync-game-src.sh
+          ./tools/build-release-packages.sh
+          ls -lh dist/
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crt-spaceship-packages
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create / update GitHub Release (tag pushes)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/CRT-Spaceship-Windows-x64.zip
+            dist/CRT-Spaceship-macOS-universal.tar.gz
+            dist/CRT-Spaceship-Linux-x64.tar.gz
+            dist/CRT-Spaceship-Web.zip
+            dist/CRT-Spaceship-Android-Web.zip
+            dist/CRT-Spaceship-iOS-Web.zip
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
+          body: |
+            ## CRT Spaceship portable packages
+
+            Pure HTML5 game — no installer required.
+
+            | File | Platform |
+            |------|----------|
+            | `CRT-Spaceship-Windows-x64.zip` | Windows |
+            | `CRT-Spaceship-macOS-universal.tar.gz` | macOS |
+            | `CRT-Spaceship-Linux-x64.tar.gz` | Linux |
+            | `CRT-Spaceship-Android-Web.zip` | Android (web / Add to Home screen) |
+            | `CRT-Spaceship-iOS-Web.zip` | iOS (Safari Add to Home Screen) |
+            | `CRT-Spaceship-Web.zip` | Universal web payload |
+
+            **Play online:** https://anacondy.github.io/3-Bad-day-24-CRT-SPACESHIP-/
+
+            License: Apache-2.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

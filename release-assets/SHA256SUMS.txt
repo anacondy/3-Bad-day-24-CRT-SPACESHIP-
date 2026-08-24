@@ -1,0 +1,6 @@
+665b9d306a71abe16366cebe17bcc8930648227fdb6be1e2a2e0d71b0e45d427  CRT-Spaceship-Android-Web.zip
+a09ea0598673776dfe0a8e6aac40188b1790eafda6b6b081d1d872d558333427  CRT-Spaceship-Web.zip
+7ff17b43b446c3107b6362750f299ea1e55f8fe2017a67f7b7fd2da0c7454af5  CRT-Spaceship-Windows-x64.zip
+455d31636573787eaf5c8e9db62b5c6f06bef1c07be20dbf8177610b473e336c  CRT-Spaceship-iOS-Web.zip
+a565a8c708c9170d1590caf157134d27896133c0c2e4bb529c6a30520d5de633  CRT-Spaceship-Linux-x64.tar.gz
+ba068f5bcb0374c5370304116b65ec63615dd0b98de56407821be8cad1386b40  CRT-Spaceship-macOS-universal.tar.gz
